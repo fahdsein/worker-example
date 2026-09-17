@@ -1,0 +1,76 @@
+:root {
+  color-scheme: light;
+  font-family: system-ui, sans-serif;
+  background: #f4f6f8;
+  color: #17202a;
+}
+
+body {
+  margin: 0;
+  padding: 40px 20px;
+}
+
+.card {
+  box-sizing: border-box;
+  width: min(100%, 620px);
+  margin: 0 auto;
+  padding: 28px;
+  border: 1px solid #d8dee4;
+  border-radius: 12px;
+  background: #fff;
+  box-shadow: 0 8px 24px rgb(140 149 159 / 18%);
+}
+
+label,
+input,
+button {
+  display: block;
+  box-sizing: border-box;
+  width: 100%;
+}
+
+label {
+  margin-top: 24px;
+  font-weight: 650;
+}
+
+input,
+button {
+  margin-top: 8px;
+  padding: 11px 12px;
+  border-radius: 6px;
+  font: inherit;
+}
+
+input {
+  border: 1px solid #8c959f;
+}
+
+button {
+  border: 0;
+  background: #0969da;
+  color: #fff;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+button:hover {
+  background: #0550ae;
+}
+
+button:disabled {
+  cursor: wait;
+  opacity: .65;
+}
+
+button:focus-visible,
+input:focus-visible {
+  outline: 3px solid #bf8700;
+  outline-offset: 2px;
+}
+
+#status {
+  min-height: 1.5em;
+  margin-top: 24px;
+  font-weight: 650;
+}

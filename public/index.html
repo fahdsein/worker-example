@@ -1,0 +1,22 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>PaaS Worker Dashboard</title>
+    <link rel="stylesheet" href="/styles.css">
+    <script src="/app.js" defer></script>
+  </head>
+  <body>
+    <main class="card">
+      <h1>PaaS background worker</h1>
+      <p>Submit a demonstration job and watch a separate worker process complete it.</p>
+      <form id="task-form">
+        <label for="duration">Duration in seconds</label>
+        <input id="duration" name="duration" type="number" min="1" max="60" value="10" required>
+        <button id="submit-button" type="submit">Start background task</button>
+      </form>
+      <p id="status" role="status" aria-live="polite">Status: Idle</p>
+    </main>
+  </body>
+</html>
