@@ -2,22 +2,24 @@
   "name": "paas-worker-example",
   "version": "1.0.0",
   "private": true,
-  "description": "Two-process web and background-worker example for container PaaS deployments.",
+  "description": "NEO App public web and NATS JetStream worker example with durable PostgreSQL task status.",
+  "type": "module",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",
     "worker": "node worker.js",
-    "check": "node --check server.js && node --check worker.js && node --check shared.js && node --check task.js && node --check public/app.js",
+    "check": "node --check server.js && node --check worker.js && node --check shared.js && node --check database.js && node --check queue.js && node --check task.js && node --check public/app.js",
     "test": "node --test"
   },
   "engines": {
     "node": ">=22"
   },
   "dependencies": {
-    "bullmq": "^5.1.0",
+    "@nats-io/jetstream": "3.4.0",
+    "@nats-io/transport-node": "3.4.0",
     "dotenv": "^16.4.5",
     "express": "^4.21.2",
     "helmet": "^8.0.0",
-    "ioredis": "^5.4.1"
+    "pg": "8.16.3"
   }
 }

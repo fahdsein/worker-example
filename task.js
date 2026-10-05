@@ -1,5 +1,3 @@
-'use strict';
-
 const DEFAULT_DURATION_MS = 10000;
 const MIN_DURATION_MS = 1000;
 const MAX_DURATION_MS = 60000;
@@ -15,4 +13,4 @@ function normalizeDuration(value) {
   return value;
 }
 
-module.exports = { DEFAULT_DURATION_MS, MIN_DURATION_MS, MAX_DURATION_MS, normalizeDuration };
+export { DEFAULT_DURATION_MS, MIN_DURATION_MS, MAX_DURATION_MS, normalizeDuration };

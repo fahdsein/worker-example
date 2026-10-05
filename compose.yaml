@@ -1,14 +1,23 @@
 services:
-  redis:
-    image: redis:7-alpine
-    command: redis-server --appendonly yes
-    volumes:
-      - redis-data:/data
+  postgres:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_DB: worker_tasks
+      POSTGRES_USER: worker
+      POSTGRES_PASSWORD: worker-local
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD-SHELL", "pg_isready -U worker -d worker_tasks"]
       interval: 5s
       timeout: 3s
-      retries: 10
+      retries: 15
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+
+  nats:
+    image: nats:2.11-alpine
+    command: ["-js", "-m", "8222", "-sd", "/data"]
+    volumes:
+      - nats-data:/data
 
   web:
     build:
@@ -16,30 +25,50 @@ services:
       dockerfile: Dockerfile
     environment:
       PORT: 3000
-      REDIS_URL: redis://redis:6379
-      QUEUE_NAME: heavy-tasks
+      DATABASE_URL: postgresql://worker:worker-local@postgres:5432/worker_tasks
+      DATABASE_AUTO_MIGRATE: "true"
+      NATS_URL: nats://nats:4222
+      NATS_STREAM: NEO_WORKER_TASKS
+      NATS_SUBJECT: neo.worker.tasks
+      NATS_CONSUMER: neo-worker-example
+      NATS_MANAGE_RESOURCES: "true"
+      SUBMIT_RATE_LIMIT: 10
+      MAX_PENDING_TASKS: 100
     ports:
       - "3000:3000"
     depends_on:
-      redis:
+      postgres:
         condition: service_healthy
+      nats:
+        condition: service_started
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1:3000/healthz"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1:3000/readyz"]
       interval: 10s
       timeout: 3s
-      retries: 5
+      retries: 10
 
   worker:
     build:
       context: .
       dockerfile: Dockerfile.worker
     environment:
-      REDIS_URL: redis://redis:6379
-      QUEUE_NAME: heavy-tasks
+      DATABASE_URL: postgresql://worker:worker-local@postgres:5432/worker_tasks
+      DATABASE_AUTO_MIGRATE: "true"
+      NATS_URL: nats://nats:4222
+      NATS_STREAM: NEO_WORKER_TASKS
+      NATS_SUBJECT: neo.worker.tasks
+      NATS_CONSUMER: neo-worker-example
+      NATS_MANAGE_RESOURCES: "true"
+      NATS_MAX_DELIVER: 3
+      NATS_ACK_WAIT_MS: 120000
+      NATS_NAK_DELAY_MS: 1000
       WORKER_CONCURRENCY: 2
     depends_on:
-      redis:
+      postgres:
         condition: service_healthy
+      nats:
+        condition: service_started
 
 volumes:
-  redis-data:
+  postgres-data:
+  nats-data:

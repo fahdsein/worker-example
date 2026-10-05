@@ -1,56 +1,81 @@
-'use strict';
+import { config } from './shared.js';
+import { closeDatabase, getTask, openDatabase, updateTask } from './database.js';
+import { decodeTask, ensureConsumer, ensureStream, openQueue } from './queue.js';
+import { normalizeDuration } from './task.js';
 
-const { Worker } = require('bullmq');
-const { config, createRedisConnection } = require('./shared');
-const { normalizeDuration } = require('./task');
+const queue = await openQueue('worker-example-consumer');
+await openDatabase();
+await ensureStream(queue);
+await ensureConsumer(queue);
 
-const redis = createRedisConnection({ worker: true });
+const consumer = await queue.js.consumers.get(queue.settings.stream, queue.settings.consumer);
+const messages = await consumer.consume({ max_messages: config.workerConcurrency });
+const active = new Set();
+let stopping = false;
 
-const worker = new Worker(
-  config.queueName,
-  async (job) => {
-    const duration = normalizeDuration(job.data?.durationMs);
-    const steps = 10;
-    const delay = Math.max(1, Math.floor(duration / steps));
-
-    console.log(`[worker] Starting job ${job.id}.`);
-    for (let step = 1; step <= steps; step += 1) {
-      await new Promise((resolve) => setTimeout(resolve, delay));
-      await job.updateProgress(step * 10);
+async function processMessage(message) {
+  let job;
+  let progress = 0;
+  try {
+    job = decodeTask(message);
+    const task = await getTask(job.id);
+    if (!task) throw new Error(`Task ${job.id} does not exist in NEO DB.`);
+    if (task.state === 'completed') {
+      message.ack();
+      return;
     }
 
-    console.log(`[worker] Completed job ${job.id}.`);
-    return {
-      finishedAt: new Date().toISOString(),
-      message: `Task ${job.id} completed`,
-    };
-  },
-  {
-    connection: redis,
-    concurrency: config.workerConcurrency,
-  },
-);
+    const duration = normalizeDuration(job.durationMs);
+    await updateTask(job.id, { state: 'running', progress: 0 });
+    console.log(`[worker] Starting task ${job.id}; delivery ${message.info?.deliveryCount || 1}.`);
 
-worker.on('ready', () => console.log('[worker] Ready for jobs.'));
-worker.on('failed', (job, error) => {
-  console.error(`[worker] Job ${job?.id || 'unknown'} failed:`, error.message);
-});
-worker.on('error', (error) => console.error('[worker] Redis/worker error:', error.message));
+    const steps = 10;
+    const delay = Math.max(1, Math.floor(duration / steps));
+    for (let step = 1; step <= steps; step += 1) {
+      await new Promise((resolve) => setTimeout(resolve, delay));
+      progress = step * 10;
+      await updateTask(job.id, { state: 'running', progress });
+      message.working();
+    }
 
-let shuttingDown = false;
-async function shutdown(signal) {
-  if (shuttingDown) return;
-  shuttingDown = true;
-  console.log(`[worker] Received ${signal}; finishing active work.`);
-
-  const forceExit = setTimeout(() => process.exit(1), 15000);
-  forceExit.unref();
-
-  await worker.close();
-  await redis.quit();
-  clearTimeout(forceExit);
-  process.exit(0);
+    const result = { finishedAt: new Date().toISOString(), message: `Task ${job.id} completed` };
+    await updateTask(job.id, { state: 'completed', progress: 100, result });
+    message.ack();
+    console.log(`[worker] Completed task ${job.id}.`);
+  } catch (error) {
+    const deliveryCount = message.info?.deliveryCount || 1;
+    const finalAttempt = deliveryCount >= queue.settings.maxDeliver;
+    console.error(`[worker] Task ${job?.id || 'unknown'} failed:`, error.message);
+    if (job?.id) {
+      await updateTask(job.id, {
+        state: finalAttempt ? 'failed' : 'retrying',
+        progress,
+        failedReason: error.message,
+      }).catch((databaseError) => console.error('[worker] Could not record failure:', databaseError.message));
+    }
+    if (finalAttempt) message.term();
+    else message.nak(config.workerNakDelayMs);
+  }
 }
 
-process.on('SIGTERM', () => shutdown('SIGTERM'));
-process.on('SIGINT', () => shutdown('SIGINT'));
+async function shutdown(signal) {
+  if (stopping) return;
+  stopping = true;
+  console.log(`[worker] Received ${signal}; draining active tasks.`);
+  await messages.close();
+  await Promise.allSettled(active);
+  await queue.nc.drain();
+  await closeDatabase();
+}
+
+process.on('SIGTERM', () => void shutdown('SIGTERM'));
+process.on('SIGINT', () => void shutdown('SIGINT'));
+
+console.log(`[worker] Consuming ${queue.settings.stream}/${queue.settings.consumer} on ${queue.settings.subject}.`);
+for await (const message of messages) {
+  if (stopping) break;
+  while (active.size >= config.workerConcurrency) await Promise.race(active);
+  const task = processMessage(message).finally(() => active.delete(task));
+  active.add(task);
+}
+await Promise.allSettled(active);

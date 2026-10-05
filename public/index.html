@@ -9,11 +9,16 @@
   </head>
   <body>
     <main class="card">
-      <h1>PaaS background worker</h1>
-      <p>Submit a demonstration job and watch a separate worker process complete it.</p>
+      <p class="eyebrow">NEO Queue · NATS JetStream</p>
+      <h1>Public worker test</h1>
+      <p>Submit a demonstration job and watch a private NEO Worker process it. Progress is stored in NEO DB, so it survives web restarts and scaling.</p>
       <form id="task-form">
         <label for="duration">Duration in seconds</label>
         <input id="duration" name="duration" type="number" min="1" max="60" value="10" required>
+        <div id="token-container" hidden>
+          <label for="token">Testing access token</label>
+          <input id="token" name="token" type="password" autocomplete="off" placeholder="Enter TEST_SUBMIT_TOKEN">
+        </div>
         <button id="submit-button" type="submit">Start background task</button>
       </form>
       <p id="status" role="status" aria-live="polite">Status: Idle</p>

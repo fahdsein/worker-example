@@ -1,35 +1,30 @@
-'use strict';
+import 'dotenv/config';
+import { timingSafeEqual } from 'node:crypto';
 
-const IORedis = require('ioredis');
-require('dotenv').config();
+export function positiveInteger(value, fallback, maximum = Number.MAX_SAFE_INTEGER) {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed > 0 ? Math.min(parsed, maximum) : fallback;
+}
 
-const isProduction = process.env.NODE_ENV === 'production';
-const redisUrl = process.env.REDIS_URL || (!isProduction ? 'redis://127.0.0.1:6379' : '');
+export function enabled(value) {
+  return /^(1|true|yes|on)$/i.test(String(value || ''));
+}
 
-if (!redisUrl) throw new Error('REDIS_URL is required in production.');
+export function safeEqual(actual, expected) {
+  const left = Buffer.from(String(actual || ''));
+  const right = Buffer.from(String(expected || ''));
+  return left.length === right.length && timingSafeEqual(left, right);
+}
 
-const config = Object.freeze({
-  port: Number.parseInt(process.env.PORT || '3000', 10),
-  queueName: process.env.QUEUE_NAME || 'heavy-tasks',
-  workerConcurrency: Number.parseInt(process.env.WORKER_CONCURRENCY || '2', 10),
-  redisUrl,
+export const config = Object.freeze({
+  port: positiveInteger(process.env.PORT, 3000, 65535),
+  workerConcurrency: positiveInteger(process.env.WORKER_CONCURRENCY, 2, 20),
+  workerNakDelayMs: positiveInteger(process.env.NATS_NAK_DELAY_MS, 1000, 60000),
+  submitRateLimit: positiveInteger(process.env.SUBMIT_RATE_LIMIT, 10, 1000),
+  maximumPendingTasks: positiveInteger(process.env.MAX_PENDING_TASKS, 100, 10000),
+  submitToken: process.env.TEST_SUBMIT_TOKEN || '',
 });
 
-if (!Number.isInteger(config.port) || config.port < 1 || config.port > 65535) {
-  throw new Error('PORT must be a valid TCP port.');
+export function validTaskId(value) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 }
-if (!Number.isInteger(config.workerConcurrency) || config.workerConcurrency < 1 || config.workerConcurrency > 50) {
-  throw new Error('WORKER_CONCURRENCY must be an integer between 1 and 50.');
-}
-
-function createRedisConnection({ worker }) {
-  const connection = new IORedis(config.redisUrl, {
-    enableReadyCheck: true,
-    maxRetriesPerRequest: worker ? null : 1,
-  });
-  connection.on('error', (error) => console.error('[redis] Connection error:', error.message));
-  return connection;
-}
-
-module.exports = { config, createRedisConnection };
-

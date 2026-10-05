@@ -21,6 +21,19 @@ body {
   box-shadow: 0 8px 24px rgb(140 149 159 / 18%);
 }
 
+.eyebrow {
+  margin: 0 0 8px;
+  color: #0969da;
+  font-size: 0.78rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+}
+
+h1 {
+  margin-top: 0;
+}
+
 label,
 input,
 button {

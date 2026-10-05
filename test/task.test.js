@@ -1,7 +1,7 @@
-const test = require('node:test');
-const assert = require('node:assert/strict');
+import test from 'node:test';
+import assert from 'node:assert/strict';
 
-const { DEFAULT_DURATION_MS, normalizeDuration } = require('../task');
+import { DEFAULT_DURATION_MS, normalizeDuration } from '../task.js';
 
 test('uses the default duration when no value is supplied', () => {
   assert.equal(normalizeDuration(), DEFAULT_DURATION_MS);

@@ -2,6 +2,8 @@ const form = document.querySelector('#task-form');
 const durationInput = document.querySelector('#duration');
 const submitButton = document.querySelector('#submit-button');
 const statusElement = document.querySelector('#status');
+const tokenContainer = document.querySelector('#token-container');
+const tokenInput = document.querySelector('#token');
 
 const sleep = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
 
@@ -16,6 +18,14 @@ async function readJson(response) {
   }
   return body;
 }
+
+fetch('/api/config')
+  .then(readJson)
+  .then((settings) => {
+    tokenContainer.hidden = !settings.requiresSubmitToken;
+    tokenInput.required = settings.requiresSubmitToken;
+  })
+  .catch(() => setStatus('Configuration unavailable'));
 
 async function pollTask(taskId) {
   for (let attempt = 0; attempt < 90; attempt += 1) {
@@ -45,9 +55,13 @@ form.addEventListener('submit', async (event) => {
 
   try {
     const durationMs = Number(durationInput.value) * 1000;
+    const token = tokenInput.value.trim();
     const task = await readJson(await fetch('/api/tasks', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(token ? { 'X-Test-Token': token } : {}),
+      },
       body: JSON.stringify({ durationMs }),
     }));
 
